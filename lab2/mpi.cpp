@@ -43,12 +43,12 @@ void GemmParallelBlocked(const float a[kI][kK], const float b[kK][kJ],
   MPI_Scatter(a_contiguous, kI * kK / num_processes, MPI_FLOAT, a_local, kI * kK / num_processes, MPI_FLOAT, 0, MPI_COMM_WORLD);
   MPI_Bcast(b_contiguous, kK * kJ, MPI_FLOAT, 0, MPI_COMM_WORLD);
   for (int ii = 0; ii < kI / num_processes; ii += 64)
-    for (int jj = 0; jj < kJ; jj += 64)
-      for (int kk = 0; kk < kK; kk += 64)
+    for (int jj = 0; jj < kJ; jj += 1024)
+      for (int kk = 0; kk < kK; kk += 8)
         for (int i = ii; i < ii + 64; ++i)
-          for (int j = jj; j < jj + 64; ++j)
+          for (int j = jj; j < jj + 1024; ++j)
           {
-            for (int k = kk; k < kk + 64; ++k)
+            for (int k = kk; k < kk + 8; ++k)
               c_local[i * kJ + j] += a_local[i * kK + k] * b_contiguous[k * kJ + j];
           }
 
