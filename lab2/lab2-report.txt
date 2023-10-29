@@ -34,17 +34,60 @@ ans MPI_Recv as follows:
     MPI_Recv(a_local, kI * kK / num_processes, MPI_FLOAT, 0, rank, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }
 
-On my local machine, I got 100.172 GFlops with the above method and 104.706 GFlops with MPI_Scatter.
-Ultimately, the impact was very small, which leads me to suspect that MPI_Scatter is implemented
-similarly to the MPI_Send and MPI_Recv strategy above under the hood.
+On my local machine, I got 100.172 GFlops with the above method and 104.706 GFlops with MPI_Scatter
+(4096^3 np=4). Ultimately, the impact was very small, which leads me to suspect that MPI_Scatter is 
+implemented similarly to the MPI_Send and MPI_Recv strategy above under the hood.
 
 
 ● Please report the performance on three different problem sizes (1024³, 2048³, and 4096³).
 If you get significantly different throughput numbers for the different sizes, please explain
 why.
+
+On the AWS instance, the results were (np=4):
+  1024^3 62.6367 GFlops 0.0342847 s
+  2048^3 76.225 GFlops 0.225384 s
+  4096^3 97.1985 GLops 1.414 s
+
+Although the times to complete smaller problems were relatively small, the overhead required for 
+setting up and executing MPI communications is relatively higher (compared to actual computation)
+with smaller problem sizes. Also, the cost of flattening 2D a and b arrays is relatively higher
+for smaller problem sizes. Such relatively higher overhead costs contribute to lower GFlops.
+
 ● Please report the scalability of your program and discuss any significant non-linear part
 of your result. Note that you can, for example, make np=8 to change the number of
 processors. Please perform the experiment np=1, 2, 4, 8, 16, 32.
+
+On the AWS instance, the results were (4096^3):
+  np=1 27.9289 GFlops 4.92104 s
+  np=2 52.7719 GFlops 2.6044 s
+  np=4 90.4008 GFlops 1.52033 s
+  np=8 86.9003 GFlops 1.58157 s
+  np=16 56.9858 GFlops 2.41181 s
+  np=32 31.7622 GFlops 4.32713 s
+
+With more processors, we see a severe drop off performance. This might be due to increased
+overhead with more processers. MPI communication, synchronization, and creation overheads
+are exacerbated with increasing processors - so much so that performance actually degrades.
+
+With fewer processors, we also see worse performance as expected. This might be due to the
+fact that each processor has more work to do, computing a larger chunk of c.
+
 ● Please discuss how your MPI implementation compares with your OpenMP
 implementation in Lab 1 in terms of the programming effort and the performance. Explain
 why you have observed such a difference in performance (Bonus +5).
+
+Ultimately, my lab 2 matrix multiplication significantly outperformed my lab 1 implementation.
+My 4096^3 performance was roughly 130 GFlops while lab 1 was roughly 105 GFlops. In terms of
+programming effort, I found lab 2 harder because it was difficult to figure out exactly how
+processes communicate in MPI. It was hard to wrap my head around how MPI_Scatter splits an
+array in the root process (which also exists in other rank processes) and distributes these
+splits to local buffers that exist in each process. 
+
+I think MPI may have been better suited for this problem (as reflected in the performance gain)
+than OpenMP because of MPI's use of distributed memory compared to OpenMP's shared memory model.
+For much larger problems, this distributed memory might allow small chunks of the large problem
+to fit in each process' memory when this would not be possible with OpenMP. It may also be easier
+to have improved locality when each process' holds less data in memory.
+
+My MPI implementation also improved upon my OpenMP in that I used more efficient tile sizes that
+better took advantage of locality.
