@@ -1,0 +1,50 @@
+● Please briefly explain how the data and computation are partitioned among the
+processors. Also, briefly explain how communication among processors is done.
+
+The processors each handle kI / num_processors rows of c for computing the matrix
+multiplication. Initially, the root process with rank 0 rewrites matrix a into a
+row-majored single dimension array. Each process then gets its own local a array,
+which holds the chunk of a which is needed for computing the processes respective
+rows of c. We broadcast the entire b (also flattened into 1D) to all processes via
+MPI_Bcast and we scatter chunks of a evenly via MPI_Scatter. MPI_Scatter places 
+each chunk of a into each processes respective local a array. Each process 
+computes its chunk of c, storing the result in a local c array, and these local c's
+are gathered back into the root process' 1D c array using MPI_Gather.
+
+● Please analyze (theoretically or experimentally) the impact of different communication
+APIs (e.g. blocking: MPI_Send , MPI_Recv , buffered blocking: MPI_Bsend , non-blocking:
+MPI_Isend, MPI_Irecv, etc). Attach code snippets to the report if you verified
+experimentally. Please choose the APIs that provide the best performance for your final
+version.
+
+As an alternative to MPI_Scatter, I tried to manually replicate the behavior with MPI_Send
+ans MPI_Recv as follows:
+
+  if (rank == 0)
+  {
+    for (int i = 1; i < num_processes; ++i)
+    {
+      memcpy(a_local, a_contiguous + i * kI * kK / num_processes, kI * kK / num_processes * sizeof(float));
+      MPI_Send(a_local, kI * kK / num_processes, MPI_FLOAT, i, i, MPI_COMM_WORLD);
+    }
+    memcpy(a_local, a_contiguous, kI * kK / num_processes * sizeof(float));
+  }
+  else
+  {
+    MPI_Recv(a_local, kI * kK / num_processes, MPI_FLOAT, 0, rank, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  }
+
+On my local machine, I got 100.172 GFlops with the above method and 104.706 GFlops with MPI_Scatter.
+Ultimately, the impact was very small, which leads me to suspect that MPI_Scatter is implemented
+similarly to the MPI_Send and MPI_Recv strategy above under the hood.
+
+
+● Please report the performance on three different problem sizes (1024³, 2048³, and 4096³).
+If you get significantly different throughput numbers for the different sizes, please explain
+why.
+● Please report the scalability of your program and discuss any significant non-linear part
+of your result. Note that you can, for example, make np=8 to change the number of
+processors. Please perform the experiment np=1, 2, 4, 8, 16, 32.
+● Please discuss how your MPI implementation compares with your OpenMP
+implementation in Lab 1 in terms of the programming effort and the performance. Explain
+why you have observed such a difference in performance (Bonus +5).
