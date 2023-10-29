@@ -40,7 +40,20 @@ void GemmParallelBlocked(const float a[kI][kK], const float b[kK][kJ],
 
   float *c_contiguous = (float *)lab2::aligned_alloc(64, kI * kJ * sizeof(float));
 
-  MPI_Scatter(a_contiguous, kI * kK / num_processes, MPI_FLOAT, a_local, kI * kK / num_processes, MPI_FLOAT, 0, MPI_COMM_WORLD);
+  if (rank == 0)
+  {
+    for (int i = 1; i < num_processes; ++i)
+    {
+      memcpy(a_local, a_contiguous + i * kI * kK / num_processes, kI * kK / num_processes * sizeof(float));
+      MPI_Send(a_local, kI * kK / num_processes, MPI_FLOAT, i, i, MPI_COMM_WORLD);
+    }
+    memcpy(a_local, a_contiguous, kI * kK / num_processes * sizeof(float));
+  }
+  else
+  {
+    MPI_Recv(a_local, kI * kK / num_processes, MPI_FLOAT, 0, rank, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  }
+  // MPI_Scatter(a_contiguous, kI * kK / num_processes, MPI_FLOAT, a_local, kI * kK / num_processes, MPI_FLOAT, 0, MPI_COMM_WORLD);
   MPI_Bcast(b_contiguous, kK * kJ, MPI_FLOAT, 0, MPI_COMM_WORLD);
   for (int ii = 0; ii < kI / num_processes; ii += 64)
     for (int jj = 0; jj < kJ; jj += 1024)
